@@ -49,7 +49,6 @@ async def process_name_age(message: Message, state: FSMContext):
             
         await state.update_data(name_age=message.text.strip())
         await message.answer(
-            f"CryptoBusinessTeam, \n"
             f"2. Был ли опыт работы на звонках/чатах? (Если был, подробно описать)"
         )
         await state.set_state(RegistrationForm.experience)
@@ -67,7 +66,6 @@ async def process_experience(message: Message, state: FSMContext):
             
         await state.update_data(experience=message.text.strip())
         await message.answer(
-            f"CryptoBusinessTeam, \n"
             f"3. Сколько времени готовы уделять работе?"
         )
         await state.set_state(RegistrationForm.work_hours)
@@ -85,7 +83,6 @@ async def process_work_hours(message: Message, state: FSMContext):
             
         await state.update_data(work_hours=message.text.strip())
         await message.answer(
-            f"CryptoBusinessTeam, \n"
             f"4. Понимаете ли вы, как работает отмена транзакции?"
         )
         await state.set_state(RegistrationForm.transaction_knowledge)
