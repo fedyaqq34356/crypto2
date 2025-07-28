@@ -28,26 +28,15 @@ def get_worker_menu() -> ReplyKeyboardMarkup:
         input_field_placeholder="Выберите действие..."
     )
 
+
 def get_admin_menu() -> ReplyKeyboardMarkup:
-    """Создание клавиатуры для администраторов"""
+    """Создание клавиатуры для администраторов - только админские функции"""
     kb = [
-        [KeyboardButton(text="Admin Menu")],
-        [
-            KeyboardButton(text="Моя статистика"),
-            KeyboardButton(text="Топ недели")
-        ],
-        [
-            KeyboardButton(text="Канал"),
-            KeyboardButton(text="Команды")
-        ],
-        [
-            KeyboardButton(text="Мои кошельки"),
-            KeyboardButton(text="Выплаты")
-        ]
+        [KeyboardButton(text="Admin Menu")]
     ]
     return ReplyKeyboardMarkup(
         keyboard=kb,
         resize_keyboard=True,
         one_time_keyboard=False,
-        input_field_placeholder="Выберите действие..."
+        input_field_placeholder="Админ-панель..."
     )
