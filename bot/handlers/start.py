@@ -71,7 +71,7 @@ async def cmd_start_deeplink(message: Message):
         if status == "active":
             # Пользователь уже активирован - показываем рабочее меню
             await message.answer(
-                f"CryptoBusinessTeam,\n"
+
                 f"Добро пожаловать! Меню бота доступно по клавиатуре.",
                 reply_markup=get_worker_menu()
             )
@@ -121,7 +121,6 @@ async def cmd_start(message: Message):
         if status == "active":
             # Пользователь уже активирован - показываем рабочее меню
             await message.answer(
-                f"CryptoBusinessTeam,\n"
                 f"Добро пожаловать! Меню бота доступно по клавиатуре.",
                 reply_markup=get_worker_menu()
             )
