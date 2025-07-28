@@ -70,7 +70,6 @@ async def show_stats(message: Message):
             
         stats = await get_user_stats(message.from_user.id)
         stats_text = (
-            f"CryptoBusinessTeam,\n"
             f"{format_stats(stats)}"
         )
         
@@ -95,7 +94,6 @@ async def show_top_week(message: Message):
         config = load_config()
         
         top_text = (
-            f"CryptoBusinessTeam,\n"
             f"{format_top_week(top)}"
         )
         
@@ -118,7 +116,6 @@ async def generate_wallets(message: Message):
             
         wallets = await get_user_wallets(message.from_user.id)
         wallets_text = (
-            f"CryptoBusinessTeam,\n"
             f"{format_wallets(wallets)}"
         )
         
@@ -137,7 +134,6 @@ async def show_payments(message: Message):
             
         config = load_config()
         payments_text = (
-            f"CryptoBusinessTeam,\n"
             f"История профитов публикуется в [{config.payment_channel_url}]({config.payment_channel_url}).\n"
             f"Статистика за неделю\n"
             f"Топ воркеров: /topweek\n"
@@ -163,7 +159,6 @@ async def show_channel(message: Message):
             
         config = load_config()
         channel_text = (
-            f"CryptoBusinessTeam,\n"
             f"Подпишись на [{config.main_channel}]({config.main_channel}), "
             f"чтобы быть в курсе всех обновлений и новостей проекта.\n"
             f"На случай очередного удаления канала, "
@@ -189,7 +184,6 @@ async def show_invite(message: Message):
             
         invite_link = await generate_invite_link(message.from_user.username)
         invite_text = (
-            f"CryptoBusinessTeam,\n"
             f"Твоя пригласительная ссылка\n"
             f"[{invite_link}]({invite_link})\n"
             f"```Нажми для перехода```"
@@ -213,7 +207,6 @@ async def show_commands(message: Message):
             return
             
         commands_text = (
-            f"CryptoBusinessTeam,\n"
             f"Доступные команды:\n"
             f"/start - Перезапустить бота\n"
             f"/topweek - Топ воркеров недели\n"
@@ -238,7 +231,6 @@ async def show_wallets(message: Message):
             
         wallets = await get_user_wallets(message.from_user.id)
         wallets_text = (
-            f"CryptoBusinessTeam,\n"
             f"{format_wallets(wallets)}"
         )
         
