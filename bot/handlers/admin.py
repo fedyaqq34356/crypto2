@@ -52,7 +52,6 @@ async def manage_users(callback: CallbackQuery):
 
         for user in users[:5]:
             user_text = (
-                f"CryptoBusinessTeam, []:\n"
                 f"ID: {user['telegram_id']}\n"
                 f"Username: @{user.get('username', 'Не указан')}\n"
                 f"Status: {user['status']}\n"
@@ -109,7 +108,6 @@ async def process_payment_data(message: Message, state: FSMContext):
     try:
         config = load_config()
         payment_text = (
-            f"CryptoBusinessTeam,\n"
             f"Выплата опубликована!\n{message.text}"
         )
         
