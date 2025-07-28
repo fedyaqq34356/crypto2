@@ -36,7 +36,6 @@ async def start_exchange(message: Message, state: FSMContext):
             return
             
         await message.answer(
-            "CryptoBusinessTeam, \n"
             "Укажи количество BTC на твоем кошельке, доступное для обмена."
         )
         await state.set_state(ExchangeForm.amount)
@@ -85,7 +84,6 @@ async def process_amount(message: Message, state: FSMContext):
             )
             
             admin_message = (
-                f"CryptoBusinessTeam, \n"
                 f"Статус: Pending\n"
                 f"Воркер: @{message.from_user.username or 'Не указан'}\n"
                 f"ID: {message.from_user.id}\n"
@@ -245,7 +243,6 @@ async def confirm_transaction(callback: CallbackQuery):
             
             # Уведомление админу
             admin_notification = (
-                f"CryptoBusinessTeam,\n"
                 f"Транзакция в обработке.\n"
                 f"Воркер получил инструкции по завершению обмена.\n\n"
                 f"Инструкции: [Инструкции]({config.manager_manual})"
