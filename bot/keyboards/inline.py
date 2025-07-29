@@ -50,7 +50,8 @@ def get_admin_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Manage users", callback_data="manage_users")],
         [InlineKeyboardButton(text="Admin group", callback_data="admin_group")],
         [InlineKeyboardButton(text="Post payment", callback_data="post_payment")],
-        [InlineKeyboardButton(text="Manage wallets", callback_data="manage_wallets")]
+        [InlineKeyboardButton(text="Manage wallets", callback_data="manage_wallets")],
+        [InlineKeyboardButton(text="Сгенерировать UTM ссылку", callback_data="generate_utm")]  # Новая кнопка
     ])
 
 def get_admin_exchange_keyboard(exchange_id: int) -> InlineKeyboardMarkup:
@@ -69,4 +70,25 @@ def get_usdt_wallet_keyboard(exchange_id: int) -> InlineKeyboardMarkup:
     """Клавиатура для генерации USDT кошелька"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Сгенерировать USDT кошелек", callback_data=f"generate_usdt_{exchange_id}")]
+    ])
+
+def get_admin_approval_keyboard_with_admin(user_id: int, assigned_admin: int) -> InlineKeyboardMarkup:
+    """Клавиатура одобрения с информацией об админе"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="Подтвердить", callback_data=f"approve_{user_id}_{assigned_admin}"),
+            InlineKeyboardButton(text="Отклонить", callback_data=f"reject_{user_id}_{assigned_admin}")
+        ]
+    ])
+
+def get_exchange_keyboard_with_admin(exchange_id: int, assigned_admin: int) -> InlineKeyboardMarkup:
+    """Клавиатура обмена с проверкой админа"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Начать обмен", callback_data=f"start_exchange_{exchange_id}_{assigned_admin}")]
+    ])
+
+def get_close_exchange_keyboard(exchange_id: int, assigned_admin: int) -> InlineKeyboardMarkup:
+    """Клавиатура закрытия обмена"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Закрыть обмен", callback_data=f"close_exchange_{exchange_id}_{assigned_admin}")]
     ])
