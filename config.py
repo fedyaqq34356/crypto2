@@ -1,6 +1,8 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
+
+
 
 @dataclass
 class Config:
@@ -20,6 +22,14 @@ class Config:
     electrum_manual: str  # URL мануала Electrum
     bluewallet_manual: str  # URL мануала Bluewallet
     manager_manual: str  # URL инструкций для менеджера
+    
+    require_utm: bool = True  # Обязательный UTM для регистрации
+    
+    utm_admin_mapping: dict = field(default_factory=lambda: {
+        "admin1": 396862984,  
+        # Добавьте реальные ID ваших админов
+    })
+    # Добавьте свои маппинги
     
     # База данных
     db_path: str = "bot.db"
