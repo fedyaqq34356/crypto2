@@ -81,6 +81,70 @@ async def get_top_week_teams() -> list:
         logger.error(f"Ошибка при получении топа команд: {e}")
         return []
 
+async def get_admin_workers_stats() -> dict:
+    """Получение статистики работников для админа"""
+    try:
+        config = load_config()
+        Session = await init_db(config)
+        
+        with Session() as session:
+            # Получаем общую статистику пользователей
+            total_users = session.query(User).count()
+            active_users = session.query(User).filter(User.status == "active").count()
+            
+            # Получаем статистику по профиту
+            total_profit = session.query(func.sum(User.profit_total)).scalar() or 0
+            weekly_profit = session.query(func.sum(User.profit_week)).scalar() or 0
+            
+            # Получаем топ работников по недельному профиту
+            top_workers = (
+                session.query(User)
+                .filter(User.status == "active")
+                .filter(User.profit_week > 0)
+                .order_by(desc(User.profit_week))
+                .limit(5)
+                .all()
+            )
+            
+            # Получаем статистику по командам
+            team_count = (
+                session.query(User.referral)
+                .filter(User.referral.isnot(None))
+                .filter(User.referral != "")
+                .distinct()
+                .count()
+            )
+            
+            result = {
+                "total_users": total_users,
+                "active_users": active_users,
+                "total_profit": int(total_profit),
+                "weekly_profit": int(weekly_profit),
+                "team_count": team_count,
+                "top_workers": [
+                    {
+                        "username": worker.username or f"User{worker.telegram_id}",
+                        "profit_week": int(worker.profit_week) if worker.profit_week else 0,
+                        "profit_total": int(worker.profit_total) if worker.profit_total else 0
+                    }
+                    for worker in top_workers
+                ]
+            }
+            
+            logger.info(f"Получена статистика для админа: {result}")
+            return result
+            
+    except Exception as e:
+        logger.error(f"Ошибка при получении статистики для админа: {e}")
+        return {
+            "total_users": 0,
+            "active_users": 0,
+            "total_profit": 0,
+            "weekly_profit": 0,
+            "team_count": 0,
+            "top_workers": []
+        }
+
 async def add_test_data_for_top():
     """Добавление тестовых данных для демонстрации топа"""
     try:
