@@ -1,3 +1,4 @@
+# bot/handlers/exchange.py
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -10,10 +11,14 @@ from bot.keyboards.inline import (
     get_worker_confirmation_keyboard,
     get_usdt_wallet_keyboard
 )
-from bot.services.exchange_wallet import generate_usdt_wallet, format_usdt_wallet_message
+from bot.services.user import get_user_assigned_admin, get_admin_username, has_active_exchange
 from config import load_config
+from bot.services.exchange_wallet import generate_usdt_wallet, format_usdt_wallet_message  # Изменено с wallet на exchange_wallet
 import logging
 import re
+
+
+
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -47,6 +52,12 @@ async def start_exchange(message: Message, state: FSMContext):
 async def process_amount(message: Message, state: FSMContext):
     """Обработка суммы BTC"""
     try:
+        # Проверяем, есть ли у пользователя активные обмены
+        if await has_active_exchange(message.from_user.id):
+            await message.answer("У вас уже есть активный обмен. Дождитесь его завершения.")
+            await state.clear()
+            return
+            
         cleaned_text = re.sub(r'[^\d.,]', '', message.text.replace(',', '.'))
         
         if not cleaned_text:
@@ -66,12 +77,24 @@ async def process_amount(message: Message, state: FSMContext):
         config = load_config()
         Session = await init_db(config)
         
+        # Получаем привязанного админа
+        assigned_admin = await get_user_assigned_admin(message.from_user.id)
+        
+        if not assigned_admin:
+            await message.answer(
+                "❌ Ошибка: к вам не привязан администратор.\n"
+                "Обратитесь к поддержке."
+            )
+            await state.clear()
+            return
+        
         try:
             with Session() as session:
                 exchange = Exchange(
                     user_id=message.from_user.id, 
                     amount_btc=amount,
-                    status="pending"
+                    status="pending",
+                    assigned_admin=assigned_admin
                 )
                 session.add(exchange)
                 session.commit()
@@ -83,18 +106,26 @@ async def process_amount(message: Message, state: FSMContext):
                 parse_mode="Markdown"
             )
             
+            # Получаем username привязанного админа
+            admin_username = await get_admin_username(assigned_admin)
+            worker_username = message.from_user.username or f"User{message.from_user.id}"
+            
             admin_message = (
                 f"Статус: Pending\n"
                 f"Воркер: @{message.from_user.username or 'Не указан'}\n"
                 f"ID: {message.from_user.id}\n"
                 f"Количество BTC: {amount}\n"
+                f"Админ: @{admin_username}\n"
                 f"Воркер ожидает клиента."
             )
+            
+            from bot.keyboards.inline import get_exchange_keyboard_with_admin
+            keyboard = get_exchange_keyboard_with_admin(exchange_id, assigned_admin) if assigned_admin else get_exchange_keyboard(exchange_id)
             
             await message.bot.send_message(
                 config.admin_group,
                 admin_message,
-                reply_markup=get_exchange_keyboard(exchange_id)
+                reply_markup=keyboard
             )
             
         except Exception as db_error:
@@ -111,11 +142,94 @@ async def process_amount(message: Message, state: FSMContext):
         await message.answer("Произошла ошибка при обработке заказа.")
         await state.clear()
 
+@router.message(F.text == "Generate UTM")
+async def generate_utm_link(message: Message):
+    """Генерация UTM ссылки для админа"""
+    try:
+        config = load_config()
+        
+        # Проверяем, является ли пользователь админом
+        if message.from_user.id not in config.admin_ids:
+            await message.answer("Только администраторы могут генерировать UTM ссылки.")
+            return
+        
+        # Находим UTM код для этого админа
+        admin_utm = None
+        for utm, admin_id in config.utm_admin_mapping.items():
+            if admin_id == message.from_user.id:
+                admin_utm = utm
+                break
+        
+        if not admin_utm:
+            await message.answer("Для вас не настроен UTM код. Обратитесь к разработчику.")
+            return
+        
+        bot_username = (await message.bot.get_me()).username
+        utm_link = f"https://t.me/{bot_username}?start={admin_utm}"
+        
+        await message.answer(
+            f"🔗 Ваша UTM ссылка для привлечения воркеров:\n\n"
+            f"`{utm_link}`\n\n"
+            f"📝 Все пользователи, перешедшие по этой ссылке, "
+            f"будут привязаны к вам и только вы сможете с ними работать."
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка генерации UTM: {e}")
+        await message.answer("Ошибка при генерации ссылки.")
+
+@router.callback_query(F.data == "generate_utm")
+async def handle_generate_utm(callback: CallbackQuery):
+    """Обработка нажатия кнопки генерации UTM ссылки"""
+    try:
+        config = load_config()
+        
+        # Проверяем, является ли пользователь админом
+        if callback.from_user.id not in config.admin_ids:
+            await callback.answer("Только администраторы могут генерировать UTM ссылки.")
+            return
+        
+        # Находим UTM код для этого админа
+        admin_utm = None
+        for utm, admin_id in config.utm_admin_mapping.items():
+            if admin_id == callback.from_user.id:
+                admin_utm = utm
+                break
+        
+        if not admin_utm:
+            await callback.answer("Для вас не настроен UTM код. Обратитесь к разработчику.")
+            return
+        
+        bot_username = (await callback.bot.get_me()).username
+        utm_link = f"https://t.me/{bot_username}?start={admin_utm}"
+        
+        await callback.message.answer(
+            f"🔗 Ваша UTM ссылка для привлечения воркеров:\n\n"
+            f"`{utm_link}`\n\n"
+            f"📝 Все пользователи, перешедшие по этой ссылке, "
+            f"будут привязаны к вам и только вы сможете с ними работать.",
+            parse_mode="Markdown"
+        )
+        
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"Ошибка генерации UTM через кнопку: {e}")
+        await callback.answer("Ошибка при генерации ссылки.")
+
 @router.callback_query(F.data.startswith("start_exchange_"))
 async def take_exchange_order(callback: CallbackQuery, state: FSMContext):
-    """Админ берет ордер"""
+    """Админ берет ордер - только привязанный админ"""
     try:
-        exchange_id = int(callback.data.split("_")[2])
+        parts = callback.data.split("_")
+        exchange_id = int(parts[2])
+        assigned_admin = int(parts[3]) if len(parts) > 3 else None
+        
+        # Проверяем права админа
+        if assigned_admin and callback.from_user.id != assigned_admin:
+            await callback.answer("Этот обмен может обрабатывать только назначенный админ.")
+            return
+            
         config = load_config()
         Session = await init_db(config)
         
@@ -134,34 +248,32 @@ async def take_exchange_order(callback: CallbackQuery, state: FSMContext):
             exchange.admin_id = callback.from_user.id
             session.commit()
             
+            # Обновляем сообщение с кнопкой закрытия
+            from bot.keyboards.inline import get_close_exchange_keyboard
+            close_keyboard = get_close_exchange_keyboard(exchange_id, callback.from_user.id)
+            
             await callback.message.edit_text(
-                f"{callback.message.text}\n\nСтатус: Принято [{callback.from_user.username or 'Админ'}]"
+                f"{callback.message.text}\n\nСтатус: Принято [{callback.from_user.username or 'Админ'}]",
+                reply_markup=close_keyboard
             )
             
-            # Отправляем админу инструкции в личном боте
-            from bot.templates.instructions import ADMIN_ORDER_TAKEN
-            admin_instructions = ADMIN_ORDER_TAKEN.format(
-                amount=exchange.amount_btc,
-                worker_username=await get_worker_username(exchange.user_id)
-            )
-            
-            # Дополнительные инструкции
-            admin_instructions += (
-                f"\n\n{exchange.amount_btc} BTC\n"
-                f"Воркер: @{await get_worker_username(exchange.user_id)}\n\n"
-                f"Инструкции для работы с клиентом:\n"
-                f"1. Уточните у клиента сумму, курс обмена\n"
-                f"2. Получите BTC-адрес для отправки\n"
-                f"3. После получения данных нажмите 'Начать обмен'"
-            )
+            # Отправляем уведомление воркеру
+            from bot.templates.instructions import WORKER_CLIENT_FOUND
+            worker_message = WORKER_CLIENT_FOUND.format(manager_manual=config.manager_manual)
             
             await callback.bot.send_message(
-                callback.from_user.id,
-                admin_instructions,
-                reply_markup=get_admin_exchange_keyboard(exchange_id)
+                exchange.user_id,
+                worker_message,
+                parse_mode="Markdown"
             )
             
-        await callback.answer("Ордер принят. Проверьте личные сообщения.")
+        await callback.answer("Ордер принят.")
+        
+    except (ValueError, IndexError):
+        await callback.answer("Неверный формат данных.")
+    except Exception as e:
+        logger.error(f"Ошибка в take_exchange_order: {e}")
+        await callback.answer("Ошибка при обработке обмена.")
         
     except (ValueError, IndexError):
         await callback.answer("Неверный формат данных.")
@@ -213,6 +325,51 @@ async def admin_start_exchange(callback: CallbackQuery, state: FSMContext):
     except Exception as e:
         logger.error(f"Ошибка в admin_start_exchange: {e}")
         await callback.answer("Ошибка при начале обмена.")
+
+@router.callback_query(F.data.startswith("close_exchange_"))
+async def close_exchange(callback: CallbackQuery):
+    """Закрытие обмена админом"""
+    try:
+        parts = callback.data.split("_")
+        exchange_id = int(parts[2])
+        assigned_admin = int(parts[3]) if len(parts) > 3 else None
+        
+        # Проверяем права админа
+        if assigned_admin and callback.from_user.id != assigned_admin:
+            await callback.answer("Этот обмен может закрывать только назначенный админ.")
+            return
+            
+        config = load_config()
+        Session = await init_db(config)
+        
+        with Session() as session:
+            exchange = session.query(Exchange).filter_by(id=exchange_id).first()
+            
+            if not exchange:
+                await callback.answer("Обмен не найден.")
+                return
+                
+            exchange.status = "completed"
+            session.commit()
+            
+            # Уведомляем воркера о завершении
+            await callback.bot.send_message(
+                exchange.user_id,
+                "Ваш обмен завершен. Теперь вы можете создавать новые ордеры."
+            )
+            
+            await callback.message.edit_text(
+                f"{callback.message.text}\n\n✅ Обмен закрыт администратором @{callback.from_user.username}"
+            )
+            
+        await callback.answer("Обмен закрыт!")
+        
+    except (ValueError, IndexError):
+        await callback.answer("Неверный формат данных.")
+    except Exception as e:
+        logger.error(f"Ошибка в close_exchange: {e}")
+        await callback.answer("Ошибка при закрытии обмена.")
+
 
 @router.callback_query(F.data.startswith("confirm_transaction_"))
 async def confirm_transaction(callback: CallbackQuery):
