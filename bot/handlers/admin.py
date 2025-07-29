@@ -6,6 +6,7 @@ from bot.keyboards.inline import get_admin_menu, get_channel_keyboard
 from bot.services.user import get_user_status, get_user_list, get_user_info
 from bot.services.wallet import add_wallet, delete_wallet, get_user_wallets
 from bot.utils.formatting import format_wallets
+from bot.services.stats import get_admin_workers_stats
 from config import load_config
 import logging
 
@@ -65,6 +66,41 @@ async def manage_users(callback: CallbackQuery):
     except Exception as e:
         logger.error(f"Ошибка в manage_users: {e}")
         await callback.answer("Ошибка при получении списка пользователей.")
+
+@router.message(F.text == "My Workers")
+async def show_my_workers(message: Message):
+    """Показать воркеров админа"""
+    try:
+        config = load_config()
+        
+        if message.from_user.id not in config.admin_ids:
+            await message.answer("Только для администраторов.")
+            return
+        
+        stats = await get_admin_workers_stats(message.from_user.id)
+        
+        if stats["total_workers"] == 0:
+            await message.answer("У вас пока нет активных воркеров.")
+            return
+        
+        workers_text = (
+            f"👥 Ваши воркеры ({stats['total_workers']} чел.)\n\n"
+            f"💰 Общий профит: {stats['total_profit']}$\n"
+            f"📊 Профит за неделю: {stats['week_profit']}$\n\n"
+            f"👤 Список воркеров:\n"
+        )
+        
+        for worker in stats["workers"][:10]:  # Показываем топ-10
+            workers_text += (
+                f"• @{worker['username']}: "
+                f"{worker['profit_total']}$ (неделя: {worker['profit_week']}$)\n"
+            )
+        
+        await message.answer(workers_text)
+        
+    except Exception as e:
+        logger.error(f"Ошибка в show_my_workers: {e}")
+        await message.answer("Ошибка при получении списка воркеров.")
 
 @router.callback_query(F.data == "admin_group")
 async def admin_group(callback: CallbackQuery):
@@ -138,3 +174,4 @@ async def manage_wallets(callback: CallbackQuery):
     except Exception as e:
         logger.error(f"Ошибка в manage_wallets: {e}")
         await callback.answer("Ошибка при отображении кошельков.")
+    
