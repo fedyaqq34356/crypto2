@@ -23,6 +23,9 @@ class User(Base):
     profit_total = Column(Float, default=0.0)
     profit_week = Column(Float, default=0.0)
     rank = Column(String(50), default="Freshman")
+    
+    utm_source = Column(String(255))  # UTM источник
+    assigned_admin = Column(Integer)
 
     def __repr__(self):
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username='{self.username}', status='{self.status}')>"
@@ -47,8 +50,12 @@ class Exchange(Base):
     amount_btc = Column(Float, nullable=False)
     status = Column(String(50), default="pending") 
     admin_id = Column(Integer, nullable=True)
+    assigned_admin = Column(Integer, nullable=True)  # Добавить это поле
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Exchange(id={self.id}, user_id={self.user_id}, amount_btc={self.amount_btc}, status='{self.status}')>"
 
     def __repr__(self):
         return f"<Exchange(id={self.id}, user_id={self.user_id}, amount_btc={self.amount_btc}, status='{self.status}')>"
