@@ -40,7 +40,3 @@ def get_admin_menu() -> ReplyKeyboardMarkup:
         one_time_keyboard=False,
         input_field_placeholder="Админ-панель..."
     )
-
-
-
-
