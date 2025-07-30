@@ -1,16 +1,20 @@
 from aiogram import Router, F
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from bot.keyboards.reply import get_worker_menu
-from bot.keyboards.inline import get_channel_keyboard, get_invite_keyboard
-from bot.services.user import get_user_status, get_user_stats
-from bot.services.wallet import get_user_wallets
-from bot.services.stats import get_top_week
-from bot.services.referral import generate_invite_link
-from bot.utils.formatting import format_stats, format_wallets, format_top_week
+from bot.keyboards.inline import get_channel_keyboard
+from bot.services.user import get_user_status, get_user_stats, get_user_assigned_admin, get_admin_username
+from bot.models.database import init_db, Payment
+from bot.utils.formatting import format_stats
 from config import load_config
+from sqlalchemy.sql import func
+from sqlalchemy import desc
 import logging
-import os
+import random
+import string
+
+router = Router()
+logger = logging.getLogger(__name__)
 
 router = Router()
 logger = logging.getLogger(__name__)
@@ -23,42 +27,7 @@ async def check_user_access(user_id: int) -> bool:
         logger.error(f"Ошибка проверки доступа: {e}")
         return False
 
-async def send_wallets_with_image(message: Message, wallets_text: str, reply_markup=None):
-    """Отправка сообщения с кошельками и изображением"""
-    possible_paths = [
-        "images/wallets.jpg",
-        "assets/wallets.jpg", 
-        "wallets.jpg",
-        "bot/images/wallets.jpg",
-        "static/wallets.jpg"
-    ]
-    
-    image_found = False
-    
-    for image_path in possible_paths:
-        if os.path.exists(image_path):
-            try:
-                photo = FSInputFile(image_path)
-                await message.answer_photo(
-                    photo=photo,
-                    caption=wallets_text,
-                    reply_markup=reply_markup,
-                    parse_mode="HTML"
-                )
-                image_found = True
-                logger.info(f"Кошельки отправлены с изображением: {image_path}")
-                break
-            except Exception as e:
-                logger.error(f"Ошибка при отправке изображения {image_path}: {e}")
-                continue
-    
-    if not image_found:
-        logger.warning("Изображение wallets.jpg не найдено, отправляем только текст")
-        await message.answer(
-            wallets_text,
-            reply_markup=reply_markup,
-            parse_mode="HTML"
-        )
+
 
 @router.message(F.text == "Моя статистика")
 async def show_stats(message: Message):
@@ -84,45 +53,41 @@ async def show_stats(message: Message):
 
 @router.message(F.text == "Топ недели")
 async def show_top_week(message: Message):
-    """Отображение топа недели"""
+    """Отображение топа недели на основе реальных выплат"""
     try:
         if not await check_user_access(message.from_user.id):
             await message.answer("Только одобренные пользователи имеют доступ к топу.")
             return
             
-        top = await get_top_week()
         config = load_config()
-        
-        top_text = (
-            f"{format_top_week(top)}"
-        )
-        
-        await message.answer(
-            top_text,
-            reply_markup=get_channel_keyboard(config.payment_channel_url),
-            parse_mode="HTML"
-        )
+        Session = await init_db(config)
+        with Session() as session:
+            # Получаем топ менеджеров по выплатам за неделю
+            from datetime import datetime, timedelta
+            week_ago = datetime.utcnow() - timedelta(days=7)
+            
+            top_managers = session.query(
+                Payment.manager_name,
+                func.sum(Payment.manager_profit).label('total_profit'),
+                func.count(Payment.id).label('payment_count')
+            ).filter(
+                Payment.created_at >= week_ago
+            ).group_by(Payment.manager_name).order_by(desc('total_profit')).limit(10).all()
+
+        if not top_managers:
+            await message.answer("Топ недели пуст.\nЕще нет выплат за текущую неделю.")
+            return
+
+        top_text = "🏆 Топ недели по менеджерам:\n\n"
+        for i, (manager_name, total_profit, count) in enumerate(top_managers, 1):
+            top_text += f"{i}. **{manager_name}**: {total_profit}$ | профитов: {count}\n"
+
+        await message.answer(top_text, parse_mode="Markdown")
     except Exception as e:
         logger.error(f"Ошибка в show_top_week: {e}")
         await message.answer("Ошибка при получении топа недели.")
 
-@router.message(F.text == "Сгенерировать ключи")
-async def generate_wallets(message: Message):
-    """Генерация кошельков"""
-    try:
-        if not await check_user_access(message.from_user.id):
-            await message.answer("Только одобренные пользователи могут генерировать ключи.")
-            return
-            
-        wallets = await get_user_wallets(message.from_user.id)
-        wallets_text = (
-            f"{format_wallets(wallets)}"
-        )
-        
-        await send_wallets_with_image(message, wallets_text, get_worker_menu())
-    except Exception as e:
-        logger.error(f"Ошибка в generate_wallets: {e}")
-        await message.answer("Ошибка при генерации кошельков.")
+
 
 @router.message(F.text == "Выплаты")
 async def show_payments(message: Message):
@@ -134,10 +99,8 @@ async def show_payments(message: Message):
             
         config = load_config()
         payments_text = (
-            f"История профитов публикуется в [{config.payment_channel_url}]({config.payment_channel_url}).\n"
-            f"Статистика за неделю\n"
-            f"Топ воркеров: /topweek\n"
-            f"Топ команд: /topweekteam"
+            f"💰 История профитов публикуется в канале выплат.\n\n"
+            f"📊 Для просмотра топа недели используйте кнопку 'Топ недели'"
         )
         
         await message.answer(
@@ -174,121 +137,87 @@ async def show_channel(message: Message):
         logger.error(f"Ошибка в show_channel: {e}")
         await message.answer("Ошибка при получении информации о каналах.")
 
-@router.message(F.text == "Инвайт")
-async def show_invite(message: Message):
-    """Генерация и отображение инвайт-ссылки"""
+
+
+@router.message(F.text == "Сгенерировать инвайт")
+async def generate_user_utm(message: Message):
+    """Генерация UTM ссылки для пользователя"""
     try:
         if not await check_user_access(message.from_user.id):
             await message.answer("Только одобренные пользователи могут генерировать инвайт-ссылки.")
             return
-            
-        invite_link = await generate_invite_link(message.from_user.username)
-        invite_text = (
-            f"Твоя пригласительная ссылка\n"
-            f"[{invite_link}]({invite_link})\n"
-            f"```Нажми для перехода```"
-        )
         
-        await message.answer(
-            invite_text,
-            reply_markup=get_invite_keyboard(invite_link),
-            parse_mode="Markdown"
-        )
-    except Exception as e:
-        logger.error(f"Ошибка в show_invite: {e}")
-        await message.answer("Ошибка при генерации инвайт-ссылки.")
-
-
-@router.message(F.text == "UTM ссылка")
-async def generate_user_utm(message: Message):
-    """Генерация UTM ссылки пользователем"""
-    try:
-        if not await check_user_access(message.from_user.id):
-            await message.answer("Только одобренные пользователи могут генерировать UTM ссылки.")
-            return
-        
-        # Получаем привязанного админа пользователя
-        from bot.services.user import get_user_assigned_admin, get_admin_username
         assigned_admin = await get_user_assigned_admin(message.from_user.id)
-        
         if not assigned_admin:
             await message.answer("Ошибка: к вам не привязан администратор.")
             return
         
-        # Создаем уникальный UTM код для пользователя
-        user_utm = f"user_{message.from_user.id}"
+        # Генерируем случайный UTM код из 12 символов
+        utm_code = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+        
+        # Сохраняем маппинг UTM к админу (не к пользователю!)
+        config = load_config()
+        config.utm_admin_mapping[utm_code] = assigned_admin
         
         bot_username = (await message.bot.get_me()).username
-        utm_link = f"https://t.me/{bot_username}?start={user_utm}"
+        utm_link = f"https://t.me/{bot_username}?start={utm_code}"
         
         admin_username = await get_admin_username(assigned_admin)
-        
         utm_text = (
-            f"🔗 Ваша UTM ссылка для друзей:\n\n"
+            f"🔗 Ваша инвайт-ссылка:\n\n"
             f"`{utm_link}`\n\n"
-            f"📝 Все ваши друзья, перешедшие по этой ссылке, "
-            f"будут привязаны к вашему админу @{admin_username} "
-            f"и вы получите бонус с их профита."
+            f"📝 Новые пользователи будут привязаны к админу @{admin_username}."
         )
         
         await message.answer(utm_text, parse_mode="Markdown")
-        
     except Exception as e:
         logger.error(f"Ошибка генерации UTM пользователем: {e}")
         await message.answer("Ошибка при генерации ссылки.")
 
-@router.message(F.text == "Команды")
-async def show_commands(message: Message):
-    """Отображение доступных команд"""
+
+
+
+@router.message(F.text == "Обменник")
+async def exchange_redirect(message: Message, state: FSMContext):
+    """Перенаправление на создание обмена"""
     try:
         if not await check_user_access(message.from_user.id):
-            await message.answer("Только одобренные пользователи имеют доступ к командам.")
+            await message.answer("Только одобренные пользователи могут использовать обменник.")
             return
             
-        commands_text = (
-            f"Доступные команды:\n"
-            f"/start - Перезапустить бота\n"
-            f"/topweek - Топ воркеров недели\n"
-            f"/topweekteam - Топ команд недели"
-        )
-        
-        await message.answer(
-            commands_text,
-            reply_markup=get_worker_menu()
-        )
-    except Exception as e:
-        logger.error(f"Ошибка в show_commands: {e}")
-        await message.answer("Ошибка при получении списка команд.")
-
-@router.message(F.text == "Мои кошельки")
-async def show_wallets(message: Message):
-    """Отображение кошельков пользователя"""
-    try:
-        if not await check_user_access(message.from_user.id):
-            await message.answer("Только одобренные пользователи имеют доступ к кошелькам.")
-            return
-            
-        wallets = await get_user_wallets(message.from_user.id)
-        wallets_text = (
-            f"{format_wallets(wallets)}"
-        )
-        
-        await send_wallets_with_image(message, wallets_text, get_worker_menu())
-    except Exception as e:
-        logger.error(f"Ошибка в show_wallets: {e}")
-        await message.answer("Ошибка при получении кошельков.")
-
-@router.message(F.text == "Place Order")
-async def place_order_redirect(message: Message, state: FSMContext):
-    """Перенаправление на создание заказа"""
-    try:
-        if not await check_user_access(message.from_user.id):
-            await message.answer("Только одобренные пользователи могут размещать заказы.")
-            return
-            
-
         from bot.handlers.exchange import start_exchange
         await start_exchange(message, state)
     except Exception as e:
-        logger.error(f"Ошибка в place_order_redirect: {e}")
-        await message.answer("Ошибка при создании заказа.")
+        logger.error(f"Ошибка в exchange_redirect: {e}")
+        await message.answer("Ошибка при создании обмена.")
+
+
+@router.message(F.text == "Мануалы")
+async def show_manuals(message: Message):
+    """Отображение мануалов"""
+    try:
+        if not await check_user_access(message.from_user.id):
+            await message.answer("Только одобренные пользователи имеют доступ к мануалам.")
+            return
+            
+        config = load_config()
+        assigned_admin = await get_user_assigned_admin(message.from_user.id)
+        admin_username = await get_admin_username(assigned_admin) if assigned_admin else "админ"
+        
+        manuals_text = (
+            f"Основная инфа по нашему направлению:\n\n"
+            f"Чем занимаемся:\n"
+            f"[Мануал по Electrum (Для ПК)]({config.electrum_manual})\n"
+            f"[Мануал Bluewallet (Android/iOS)]({config.bluewallet_manual})\n"
+            f"[Инструкция для менеджера]({config.manager_manual})\n\n"
+            f"Если ты изучил мануалы и освоил отмену транзакций между своими кошельками - значит, ты готов к практике\n\n"
+            f"Пиши @{admin_username}, чтобы:\n"
+            f"• получить аккаунт телеги\n"
+            f"• настроить трафик\n"
+            f"• пройти обучение и начать ворк"
+        )
+        
+        await message.answer(manuals_text, parse_mode="Markdown")
+    except Exception as e:
+        logger.error(f"Ошибка в show_manuals: {e}")
+        await message.answer("Ошибка при получении мануалов.")
