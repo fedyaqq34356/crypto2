@@ -372,4 +372,3 @@ async def update_user_profit(telegram_id: int, profit_total: float = None, profi
     except Exception as e:
         logger.error(f"Неожиданная ошибка при обновлении профита пользователя {telegram_id}: {e}")
         raise
-
