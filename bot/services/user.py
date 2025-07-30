@@ -75,10 +75,21 @@ async def save_utm_assignment(telegram_id: int, utm_source: str):
                 user.utm_source = utm_source
             
             # Привязываем к админу на основе UTM
-            # Здесь можно реализовать логику привязки к конкретному админу
-            # Например, по имени UTM источника
             admin_mapping = getattr(config, 'utm_admin_mapping', {})
             assigned_admin = admin_mapping.get(utm_source)
+            
+            # Проверяем, если это пользовательский UTM (формат user_123456)
+            if not assigned_admin and utm_source.startswith("user_"):
+                try:
+                    referrer_id = int(utm_source.split("_")[1])
+                    # Находим админа пользователя, который создал UTM
+                    referrer = session.query(User).filter_by(telegram_id=referrer_id).first()
+                    if referrer and referrer.assigned_admin:
+                        assigned_admin = referrer.assigned_admin
+                        # Также устанавливаем реферала
+                        user.referral = referrer.username or f"User{referrer_id}"
+                except (ValueError, IndexError):
+                    pass
             
             if assigned_admin:
                 user.assigned_admin = assigned_admin
