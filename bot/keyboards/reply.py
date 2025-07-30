@@ -19,6 +19,9 @@ def get_worker_menu() -> ReplyKeyboardMarkup:
         [
             KeyboardButton(text="Инвайт"),
             KeyboardButton(text="Place Order")
+        ],
+        [
+            KeyboardButton(text="UTM ссылка")  # Добавить эту строку
         ]
     ]
     return ReplyKeyboardMarkup(
