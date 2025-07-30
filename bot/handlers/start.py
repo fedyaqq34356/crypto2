@@ -56,7 +56,6 @@ async def cmd_start_deeplink(message: Message):
     try:
         config = load_config()
         
-        # Проверяем, является ли пользователь админом
         if message.from_user.id in config.admin_ids:
             await message.answer(
                 "Добро пожаловать, администратор!",
@@ -64,7 +63,6 @@ async def cmd_start_deeplink(message: Message):
             )
             return
 
-        # Извлекаем UTM параметр
         args = message.text.split()
         if len(args) < 2:
             await message.answer("Доступ к боту только по UTM ссылке.")
@@ -86,10 +84,8 @@ async def cmd_start_deeplink(message: Message):
             await message.answer("Ваш аккаунт заблокирован.")
             return
 
-        # Сохраняем UTM источник и привязываем к админу
         await save_utm_assignment(message.from_user.id, utm_param)
 
-        # Показываем правила и кнопку подачи заявки
         rules_text = format_rules()
         welcome_text = (
             "ДОБРО ПОЖАЛОВАТЬ!\n\n"
