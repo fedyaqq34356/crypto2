@@ -59,11 +59,25 @@ class Exchange(Base):
 
     def __repr__(self):
         return f"<Exchange(id={self.id}, user_id={self.user_id}, amount_btc={self.amount_btc}, status='{self.status}')>"
+    
+
+# В файле database.py добавить после других моделей:
+class Payment(Base):
+    __tablename__ = "payments"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    manager_name = Column(String(255), nullable=False)
+    payment_amount = Column(Float, nullable=False)
+    manager_profit = Column(Float, nullable=False)
+    tx_hash = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Payment(id={self.id}, manager_name='{self.manager_name}', amount={self.payment_amount})>"
 
 async def init_db(config):
     """Инициализация базы данных"""
     try:
-
         db_url = f"sqlite:///{config.db_path}"
         engine = create_engine(
             db_url, 
@@ -72,11 +86,9 @@ async def init_db(config):
             connect_args={"check_same_thread": False}  
         )
         
-
         Base.metadata.create_all(engine)
         logger.info("База данных инициализирована успешно")
         
-
         Session = sessionmaker(bind=engine)
         return Session
         
