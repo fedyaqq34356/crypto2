@@ -4,18 +4,19 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, CallbackQuery
 from bot.models.database import Exchange, init_db
-from bot.services.user import get_user_status
+from bot.services.user import get_user_status, get_user_assigned_admin, get_admin_username, has_active_exchange
 from bot.keyboards.inline import (
     get_exchange_keyboard, 
     get_admin_exchange_keyboard, 
     get_worker_confirmation_keyboard,
     get_usdt_wallet_keyboard
 )
-from bot.services.user import get_user_assigned_admin, get_admin_username, has_active_exchange
+from bot.services.exchange_wallet import generate_usdt_wallet, format_usdt_wallet_message
 from config import load_config
-from bot.services.exchange_wallet import generate_usdt_wallet, format_usdt_wallet_message  # Изменено с wallet на exchange_wallet
 import logging
 import re
+import random
+import string
 
 
 
@@ -32,7 +33,7 @@ class AdminExchangeForm(StatesGroup):
     waiting_for_btc_address = State()
     processing_transaction = State()
 
-@router.message(F.text == "Place Order")
+@router.message(F.text == "Обменник")
 async def start_exchange(message: Message, state: FSMContext):
     """Начало процесса обмена"""
     try:
@@ -142,79 +143,38 @@ async def process_amount(message: Message, state: FSMContext):
         await message.answer("Произошла ошибка при обработке заказа.")
         await state.clear()
 
-@router.message(F.text == "Generate UTM")
-async def generate_utm_link(message: Message):
-    """Генерация UTM ссылки для админа"""
-    try:
-        config = load_config()
-        
-        # Проверяем, является ли пользователь админом
-        if message.from_user.id not in config.admin_ids:
-            await message.answer("Только администраторы могут генерировать UTM ссылки.")
-            return
-        
-        # Находим UTM код для этого админа
-        admin_utm = None
-        for utm, admin_id in config.utm_admin_mapping.items():
-            if admin_id == message.from_user.id:
-                admin_utm = utm
-                break
-        
-        if not admin_utm:
-            await message.answer("Для вас не настроен UTM код. Обратитесь к разработчику.")
-            return
-        
-        bot_username = (await message.bot.get_me()).username
-        utm_link = f"https://t.me/{bot_username}?start={admin_utm}"
-        
-        await message.answer(
-            f"🔗 Ваша UTM ссылка для привлечения воркеров:\n\n"
-            f"`{utm_link}`\n\n"
-            f"📝 Все пользователи, перешедшие по этой ссылке, "
-            f"будут привязаны к вам и только вы сможете с ними работать."
-        )
-        
-    except Exception as e:
-        logger.error(f"Ошибка генерации UTM: {e}")
-        await message.answer("Ошибка при генерации ссылки.")
+
 
 @router.callback_query(F.data == "generate_utm")
-async def handle_generate_utm(callback: CallbackQuery):
-    """Обработка нажатия кнопки генерации UTM ссылки"""
+async def admin_generate_utm(callback: CallbackQuery):
+    """Генерация UTM ссылки админом с рандомными символами"""
     try:
         config = load_config()
         
-        # Проверяем, является ли пользователь админом
         if callback.from_user.id not in config.admin_ids:
             await callback.answer("Только администраторы могут генерировать UTM ссылки.")
             return
         
-        # Находим UTM код для этого админа
-        admin_utm = None
-        for utm, admin_id in config.utm_admin_mapping.items():
-            if admin_id == callback.from_user.id:
-                admin_utm = utm
-                break
+        # Генерируем случайный UTM код из 12 символов
+        utm_code = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
         
-        if not admin_utm:
-            await callback.answer("Для вас не настроен UTM код. Обратитесь к разработчику.")
-            return
+        # Сохраняем маппинг UTM к админу
+        config.utm_admin_mapping[utm_code] = callback.from_user.id
         
         bot_username = (await callback.bot.get_me()).username
-        utm_link = f"https://t.me/{bot_username}?start={admin_utm}"
+        utm_link = f"https://t.me/{bot_username}?start={utm_code}"
         
         await callback.message.answer(
             f"🔗 Ваша UTM ссылка для привлечения воркеров:\n\n"
             f"`{utm_link}`\n\n"
             f"📝 Все пользователи, перешедшие по этой ссылке, "
-            f"будут привязаны к вам и только вы сможете с ними работать.",
+            f"будут привязаны к вам.",
             parse_mode="Markdown"
         )
         
         await callback.answer()
-        
     except Exception as e:
-        logger.error(f"Ошибка генерации UTM через кнопку: {e}")
+        logger.error(f"Ошибка генерации UTM: {e}")
         await callback.answer("Ошибка при генерации ссылки.")
 
 @router.callback_query(F.data.startswith("start_exchange_"))
