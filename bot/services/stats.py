@@ -42,44 +42,7 @@ async def get_top_week() -> list:
         
         return []
 
-async def get_top_week_teams() -> list:
-    """Получение топа команд недели (по рефералам)"""
-    try:
-        config = load_config()
-        Session = await init_db(config)
-        
-        with Session() as session:
-           
-            team_stats = (
-                session.query(
-                    User.referral,
-                    func.sum(User.profit_week).label('total_profit'),
-                    func.count(User.id).label('member_count')
-                )
-                .filter(User.status == "active")
-                .filter(User.referral.isnot(None))
-                .filter(User.referral != "")
-                .filter(User.profit_week > 0)
-                .group_by(User.referral)
-                .order_by(desc('total_profit'))
-                .limit(10)
-                .all()
-            )
-            
-            result = []
-            for team in team_stats:
-                result.append({
-                    "team_name": team.referral,
-                    "total_profit": int(team.total_profit) if team.total_profit else 0,
-                    "member_count": team.member_count or 0
-                })
-                
-            logger.info(f"Получен топ команд: {len(result)} команд")
-            return result
-            
-    except Exception as e:
-        logger.error(f"Ошибка при получении топа команд: {e}")
-        return []
+
 
 async def get_admin_workers_stats() -> dict:
     """Получение статистики работников для админа"""
