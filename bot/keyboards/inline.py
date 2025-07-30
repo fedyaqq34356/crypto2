@@ -45,13 +45,13 @@ def get_exchange_keyboard(exchange_id: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="Начать обмен", callback_data=f"start_exchange_{exchange_id}")]
     ])
 
+# В файле inline.py заменить функцию get_admin_menu:
 def get_admin_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Manage users", callback_data="manage_users")],
         [InlineKeyboardButton(text="Admin group", callback_data="admin_group")],
         [InlineKeyboardButton(text="Post payment", callback_data="post_payment")],
-        [InlineKeyboardButton(text="Manage wallets", callback_data="manage_wallets")],
-        [InlineKeyboardButton(text="Сгенерировать UTM ссылку", callback_data="generate_utm")]  # Новая кнопка
+        [InlineKeyboardButton(text="Сгенерировать UTM ссылку", callback_data="generate_utm")]
     ])
 
 def get_admin_exchange_keyboard(exchange_id: int) -> InlineKeyboardMarkup:
