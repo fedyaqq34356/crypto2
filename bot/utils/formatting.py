@@ -58,15 +58,3 @@ def format_top_week(top: list) -> str:
         result += f"{i}. **{username}**, Total: **{profit}$** | профитов: {count}\n"
     return result
 
-def format_top_teams(teams: list) -> str:
-    """Форматирование топа команд недели"""
-    if not teams:
-        return "Топ команд недели пуст.\nКоманды еще не заработали профит на этой неделе."
-    
-    result = "Топ команд недели:\n\n"
-    for i, team in enumerate(teams, 1):
-        team_name = team['team_name']
-        total_profit = team['total_profit']
-        member_count = team['member_count']
-        result += f"{i}. **{team_name}**, Total: **{total_profit}$** | участников: {member_count}\n"
-    return result
