@@ -198,6 +198,45 @@ async def show_invite(message: Message):
         logger.error(f"Ошибка в show_invite: {e}")
         await message.answer("Ошибка при генерации инвайт-ссылки.")
 
+
+@router.message(F.text == "UTM ссылка")
+async def generate_user_utm(message: Message):
+    """Генерация UTM ссылки пользователем"""
+    try:
+        if not await check_user_access(message.from_user.id):
+            await message.answer("Только одобренные пользователи могут генерировать UTM ссылки.")
+            return
+        
+        # Получаем привязанного админа пользователя
+        from bot.services.user import get_user_assigned_admin, get_admin_username
+        assigned_admin = await get_user_assigned_admin(message.from_user.id)
+        
+        if not assigned_admin:
+            await message.answer("Ошибка: к вам не привязан администратор.")
+            return
+        
+        # Создаем уникальный UTM код для пользователя
+        user_utm = f"user_{message.from_user.id}"
+        
+        bot_username = (await message.bot.get_me()).username
+        utm_link = f"https://t.me/{bot_username}?start={user_utm}"
+        
+        admin_username = await get_admin_username(assigned_admin)
+        
+        utm_text = (
+            f"🔗 Ваша UTM ссылка для друзей:\n\n"
+            f"`{utm_link}`\n\n"
+            f"📝 Все ваши друзья, перешедшие по этой ссылке, "
+            f"будут привязаны к вашему админу @{admin_username} "
+            f"и вы получите бонус с их профита."
+        )
+        
+        await message.answer(utm_text, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"Ошибка генерации UTM пользователем: {e}")
+        await message.answer("Ошибка при генерации ссылки.")
+
 @router.message(F.text == "Команды")
 async def show_commands(message: Message):
     """Отображение доступных команд"""
