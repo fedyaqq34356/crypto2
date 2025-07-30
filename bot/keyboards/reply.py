@@ -1,27 +1,21 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
+# В файле reply.py заменить функцию get_worker_menu:
 def get_worker_menu() -> ReplyKeyboardMarkup:
     """Создание клавиатуры для воркеров"""
     kb = [
         [KeyboardButton(text="Моя статистика")],
         [
             KeyboardButton(text="Топ недели"),
-            KeyboardButton(text="Сгенерировать ключи")
+            KeyboardButton(text="Мануалы")
         ],
         [
             KeyboardButton(text="Канал"),
-            KeyboardButton(text="Команды")
-        ],
-        [
-            KeyboardButton(text="Мои кошельки"),
             KeyboardButton(text="Выплаты")
         ],
         [
-            KeyboardButton(text="Инвайт"),
-            KeyboardButton(text="Place Order")
-        ],
-        [
-            KeyboardButton(text="UTM ссылка")  # Добавить эту строку
+            KeyboardButton(text="Сгенерировать инвайт"),
+            KeyboardButton(text="Обменник")
         ]
     ]
     return ReplyKeyboardMarkup(
