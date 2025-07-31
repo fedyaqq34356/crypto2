@@ -11,6 +11,7 @@ from datetime import datetime
 import logging
 from sqlalchemy.sql import func
 
+
 router = Router()
 logger = logging.getLogger(__name__)
 
