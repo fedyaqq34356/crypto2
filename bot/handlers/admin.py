@@ -42,6 +42,8 @@ async def admin_menu(message: Message):
         logger.error(f"Ошибка в admin_menu: {e}")
         await message.answer("Произошла ошибка при отображении меню.")
 
+# Заменить функцию manage_users в admin.py:
+
 @router.callback_query(F.data.startswith("manage_users"))
 async def manage_users(callback: CallbackQuery, state: FSMContext):
     """Управление пользователями с пагинацией и блокировкой"""
@@ -50,7 +52,13 @@ async def manage_users(callback: CallbackQuery, state: FSMContext):
             await callback.answer("Доступ только для администраторов.")
             return
 
-        page = int(callback.data.split("_")[1]) if "_" in callback.data else 1
+        # Исправленная логика парсинга страницы
+        parts = callback.data.split("_")
+        if len(parts) > 2 and parts[2].isdigit():
+            page = int(parts[2])
+        else:
+            page = 1
+            
         per_page = 5
         admin_id = callback.from_user.id
 
@@ -279,3 +287,70 @@ async def block_user(callback: CallbackQuery):
     except Exception as e:
         logger.error(f"Ошибка в block_user: {e}")
         await callback.answer("Ошибка при блокировке пользователя.")
+
+# Добавить в admin.py после функции show_my_workers:
+
+@router.callback_query(F.data == "show_workers")
+async def show_workers_callback(callback: CallbackQuery):
+    """Показать воркеров админа через callback"""
+    try:
+        config = load_config()
+        
+        if callback.from_user.id not in config.admin_ids:
+            await callback.answer("Только для администраторов.")
+            return
+        
+        Session = await init_db(config)
+        with Session() as session:
+            # Получаем всех воркеров, привязанных к этому админу
+            workers = session.query(User).filter_by(
+                assigned_admin=callback.from_user.id,
+                status="active"
+            ).all()
+            
+            if not workers:
+                await callback.message.answer("У вас пока нет активных воркеров.")
+                await callback.answer()
+                return
+            
+            # Получаем статистику по выплатам за неделю
+            from datetime import datetime, timedelta
+            week_ago = datetime.utcnow() - timedelta(days=7)
+            
+            total_profit = 0
+            week_profit = 0
+            
+            workers_text = f"👥 Ваши воркеры ({len(workers)} чел.)\n\n"
+            
+            for worker in workers:
+                # Получаем профит воркера по имени из таблицы выплат
+                worker_payments = session.query(func.sum(Payment.manager_profit)).filter(
+                    Payment.manager_name == (worker.username or f"User{worker.telegram_id}")
+                ).scalar() or 0
+                
+                week_payments = session.query(func.sum(Payment.manager_profit)).filter(
+                    Payment.manager_name == (worker.username or f"User{worker.telegram_id}"),
+                    Payment.created_at >= week_ago
+                ).scalar() or 0
+                
+                total_profit += worker_payments
+                week_profit += week_payments
+                
+                workers_text += (
+                    f"• @{worker.username or f'User{worker.telegram_id}'}: "
+                    f"{worker_payments}$ (неделя: {week_payments}$)\n"
+                )
+            
+            workers_text = (
+                f"👥 Ваши воркеры ({len(workers)} чел.)\n\n"
+                f"💰 Общий профит: {total_profit}$\n"
+                f"📊 Профит за неделю: {week_profit}$\n\n"
+                f"👤 Список воркеров:\n" + workers_text.split("👤 Список воркеров:\n")[0] if "👤 Список воркеров:\n" in workers_text else workers_text
+            )
+        
+        await callback.message.answer(workers_text)
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"Ошибка в show_workers_callback: {e}")
+        await callback.answer("Ошибка при получении списка воркеров.")
