@@ -142,31 +142,31 @@ async def show_channel(message: Message):
 
 @router.message(F.text == "Сгенерировать инвайт")
 async def generate_user_utm(message: Message):
-    """Генерация UTM ссылки для пользователя"""
+    """Генерация UTM-ссылки для пользователя"""
     try:
         if not await check_user_access(message.from_user.id):
             await message.answer("Только одобренные пользователи могут генерировать инвайт-ссылки.")
             return
-            
-        # Генерируем код
+
+        # Генерация уникального UTM-кода
         utm_code = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         bot_username = (await message.bot.get_me()).username
         utm_link = f"https://t.me/{bot_username}?start={utm_code}"
-        
-        # Сохраняем UTM в базу
+
+        # Сохранение UTM-кода в базу данных
         config = load_config()
         Session = await init_db(config)
-        
         with Session() as session:
             utm_entry = UTMCode(
                 utm_code=utm_code,
-                assigned_admin=message.from_user.id
+                assigned_admin=message.from_user.id,
+                created_by_user=message.from_user.id
             )
             session.add(utm_entry)
             session.commit()
-        
+
         await message.answer(f"🔗 Ваша инвайт-ссылка:\n`{utm_link}`", parse_mode="Markdown")
-        
+
     except Exception as e:
         logger.error(f"Ошибка в generate_user_utm: {e}")
         await message.answer(f"Ошибка при генерации ссылки: {str(e)}")
