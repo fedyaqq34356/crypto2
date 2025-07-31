@@ -30,6 +30,18 @@ class User(Base):
     def __repr__(self):
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username='{self.username}', status='{self.status}')>"
 
+class UTMCode(Base):
+    __tablename__ = "utm_codes"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    utm_code = Column(String(255), unique=True, nullable=False)
+    assigned_admin = Column(Integer, nullable=False)
+    created_by_user = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<UTMCode(utm_code='{self.utm_code}', assigned_admin={self.assigned_admin})>"
+
+
 class Wallet(Base):
     __tablename__ = "wallets"
     
@@ -57,9 +69,6 @@ class Exchange(Base):
     def __repr__(self):
         return f"<Exchange(id={self.id}, user_id={self.user_id}, amount_btc={self.amount_btc}, status='{self.status}')>"
 
-    def __repr__(self):
-        return f"<Exchange(id={self.id}, user_id={self.user_id}, amount_btc={self.amount_btc}, status='{self.status}')>"
-    
 
 # В файле database.py добавить после других моделей:
 class Payment(Base):
@@ -74,6 +83,8 @@ class Payment(Base):
 
     def __repr__(self):
         return f"<Payment(id={self.id}, manager_name='{self.manager_name}', amount={self.payment_amount})>"
+    
+
 
 async def init_db(config):
     """Инициализация базы данных"""
