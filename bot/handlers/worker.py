@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from bot.keyboards.reply import get_worker_menu
 from bot.keyboards.inline import get_channel_keyboard
 from bot.services.user import get_user_status, get_user_stats, get_user_assigned_admin, get_admin_username
-from bot.models.database import init_db, Payment
+from bot.models.database import init_db, Payment, UTMCode
 from bot.utils.formatting import format_stats
 from config import load_config
 from sqlalchemy.sql import func
@@ -139,6 +139,7 @@ async def show_channel(message: Message):
 
 
 
+
 @router.message(F.text == "Сгенерировать инвайт")
 async def generate_user_utm(message: Message):
     """Генерация UTM ссылки для пользователя"""
@@ -146,35 +147,29 @@ async def generate_user_utm(message: Message):
         if not await check_user_access(message.from_user.id):
             await message.answer("Только одобренные пользователи могут генерировать инвайт-ссылки.")
             return
-        
-        assigned_admin = await get_user_assigned_admin(message.from_user.id)
-        if not assigned_admin:
-            await message.answer("Ошибка: к вам не привязан администратор.")
-            return
-        
-        # Генерируем случайный UTM код из 12 символов
-        utm_code = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
-        
-        # Сохраняем маппинг UTM к админу (не к пользователю!)
-        config = load_config()
-        config.utm_admin_mapping[utm_code] = assigned_admin
-        
+            
+        # Генерируем код
+        utm_code = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
         bot_username = (await message.bot.get_me()).username
         utm_link = f"https://t.me/{bot_username}?start={utm_code}"
         
-        admin_username = await get_admin_username(assigned_admin)
-        utm_text = (
-            f"🔗 Ваша инвайт-ссылка:\n\n"
-            f"`{utm_link}`\n\n"
-            f"📝 Новые пользователи будут привязаны к админу @{admin_username}."
-        )
+        # Сохраняем UTM в базу
+        config = load_config()
+        Session = await init_db(config)
         
-        await message.answer(utm_text, parse_mode="Markdown")
+        with Session() as session:
+            utm_entry = UTMCode(
+                utm_code=utm_code,
+                assigned_admin=message.from_user.id
+            )
+            session.add(utm_entry)
+            session.commit()
+        
+        await message.answer(f"🔗 Ваша инвайт-ссылка:\n`{utm_link}`", parse_mode="Markdown")
+        
     except Exception as e:
-        logger.error(f"Ошибка генерации UTM пользователем: {e}")
-        await message.answer("Ошибка при генерации ссылки.")
-
-
+        logger.error(f"Ошибка в generate_user_utm: {e}")
+        await message.answer(f"Ошибка при генерации ссылки: {str(e)}")
 
 
 @router.message(F.text == "Обменник")
