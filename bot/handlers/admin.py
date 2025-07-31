@@ -46,13 +46,12 @@ async def admin_menu(message: Message):
 
 @router.callback_query(F.data.startswith("manage_users"))
 async def manage_users(callback: CallbackQuery, state: FSMContext):
-    """Управление пользователями с пагинацией и блокировкой"""
+    """Управление пользователями с пагинацией и блокировкой/разблокировкой"""
     try:
         if not await is_admin(callback.from_user.id):
             await callback.answer("Доступ только для администраторов.")
             return
 
-        # Исправленная логика парсинга страницы
         parts = callback.data.split("_")
         if len(parts) > 2 and parts[2].isdigit():
             page = int(parts[2])
@@ -81,11 +80,14 @@ async def manage_users(callback: CallbackQuery, state: FSMContext):
                 f"Profit total: {user.profit_total or 0}$"
             )
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Заблокировать", callback_data=f"block_user_{user.telegram_id}")]
+                [
+                    InlineKeyboardButton(text="Заблокировать", callback_data=f"block_user_{user.telegram_id}")
+                    if user.status != "banned"
+                    else InlineKeyboardButton(text="Разблокировать", callback_data=f"unblock_user_{user.telegram_id}")
+                ]
             ])
             await callback.message.answer(user_text, reply_markup=keyboard)
 
-        # Пагинация
         total_pages = (total_users + per_page - 1) // per_page
         pagination_buttons = []
         if page > 1:
@@ -287,6 +289,23 @@ async def block_user(callback: CallbackQuery):
     except Exception as e:
         logger.error(f"Ошибка в block_user: {e}")
         await callback.answer("Ошибка при блокировке пользователя.")
+
+@router.callback_query(F.data.startswith("unblock_user_"))
+async def unblock_user(callback: CallbackQuery):
+    """Разблокировка пользователя"""
+    try:
+        if not await is_admin(callback.from_user.id):
+            await callback.answer("Доступ только для администраторов.")
+            return
+
+        user_id = int(callback.data.split("_")[2])
+        await update_user_status(user_id, "active")
+        await callback.message.edit_text(f"{callback.message.text}\n\n✅ Пользователь {user_id} разблокирован администратором @{callback.from_user.username}")
+        await callback.bot.send_message(user_id, "Ваш аккаунт разблокирован. Теперь вы можете использовать функции бота.")
+        await callback.answer("Пользователь разблокирован!")
+    except Exception as e:
+        logger.error(f"Ошибка в unblock_user: {e}")
+        await callback.answer("Ошибка при разблокировке пользователя.")
 
 # Добавить в admin.py после функции show_my_workers:
 
