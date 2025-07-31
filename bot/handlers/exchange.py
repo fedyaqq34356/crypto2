@@ -392,7 +392,7 @@ async def confirm_transaction(callback: CallbackQuery):
         logger.error(f"Ошибка в confirm_transaction: {e}")
         await callback.answer("Ошибка при подтверждении транзакции.")
 
-@router.message(F.text & ~F.text.startswith('/') & ~F.text.in_(['Place Order', 'Моя статистика', 'Топ недели', 'Сгенерировать ключи', 'Канал', 'Команды', 'Мои кошельки', 'Выплаты', 'Инвайт', 'Admin Menu']))
+@router.message(F.text & ~F.text.startswith('/') & ~F.text.in_(['Place Order', 'Моя статистика', 'Топ недели', 'Сгенерировать инвайт', 'Канал', 'Команды', 'Мои кошельки', 'Выплаты', 'Инвайт', 'Admin Menu', 'Мануалы', 'Обменник']))
 async def handle_exchange_messages(message: Message):
     """Обработка сообщений в процессе обмена"""
     try:
