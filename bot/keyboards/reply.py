@@ -1,6 +1,8 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 # В файле reply.py заменить функцию get_worker_menu:
+# Заменить функцию get_worker_menu в reply.py:
+
 def get_worker_menu() -> ReplyKeyboardMarkup:
     """Создание клавиатуры для воркеров"""
     kb = [
