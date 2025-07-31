@@ -11,7 +11,6 @@ from datetime import datetime
 import logging
 from sqlalchemy.sql import func
 
-
 router = Router()
 logger = logging.getLogger(__name__)
 
@@ -60,13 +59,13 @@ async def manage_users(callback: CallbackQuery, state: FSMContext):
             page = 1
             
         per_page = 5
-        admin_id = callback.from_user.id
 
         config = load_config()
         Session = await init_db(config)
         with Session() as session:
-            users = session.query(User).filter_by(assigned_admin=admin_id).order_by(User.registration_date.desc()).offset((page - 1) * per_page).limit(per_page).all()
-            total_users = session.query(User).filter_by(assigned_admin=admin_id).count()
+            # Показываем всех пользователей, а не только привязанных к админу
+            users = session.query(User).order_by(User.registration_date.desc()).offset((page - 1) * per_page).limit(per_page).all()
+            total_users = session.query(User).count()
 
         if not users:
             await callback.message.answer("Пользователи не найдены.")
@@ -80,13 +79,17 @@ async def manage_users(callback: CallbackQuery, state: FSMContext):
                 f"Registration date: {user.registration_date.strftime('%Y-%m-%d %H:%M') if user.registration_date else 'Не указано'}\n"
                 f"Profit total: {user.profit_total or 0}$"
             )
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="Заблокировать", callback_data=f"block_user_{user.telegram_id}")
-                    if user.status != "banned"
-                    else InlineKeyboardButton(text="Разблокировать", callback_data=f"unblock_user_{user.telegram_id}")
-                ]
-            ])
+            
+            # Показываем кнопки в зависимости от статуса
+            if user.status == "banned":
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="Разблокировать", callback_data=f"unblock_user_{user.telegram_id}")]
+                ])
+            else:
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="Заблокировать", callback_data=f"block_user_{user.telegram_id}")]
+                ])
+            
             await callback.message.answer(user_text, reply_markup=keyboard)
 
         total_pages = (total_users + per_page - 1) // per_page
